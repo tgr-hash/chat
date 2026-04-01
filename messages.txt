@@ -1,0 +1,3 @@
+<div class='msg them'><b>theo</b>: wassa</div>
+<div class='msg them'><b>theo</b>: testing</div>
+<div class='msg them'><b>theo</b>: yay!</div>

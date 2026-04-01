@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Singleplayer Pong</title>
+  <style>
+    body {
+      margin: 0;
+      background: #111;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+
+<script>
+(() => {
+  if (document.getElementById("pongGame")) return;
+
+  const c = document.createElement("canvas");
+  c.id = "pongGame";
+  c.width = 500;
+  c.height = 350;
+
+  Object.assign(c.style, {
+    position: "absolute",
+    left: "50%",
+    top: "50%",
+    transform: "translate(-50%,-50%)",
+    zIndex: 999999999,
+    border: "4px solid #333",
+    borderRadius: "10px",
+    background: "#fff"
+  });
+
+  document.body.appendChild(c);
+
+  const x = c.getContext("2d");
+
+  let player, ai, ball;
+  let score = 0, high = 0;
+  let over = false, run = true;
+
+  function reset() {
+    player = { x: 15, y: 140, w: 12, h: 70, s: 6 };
+    ai = { x: c.width - 27, y: 140, w: 12, h: 70 };
+
+    ball = {
+      x: c.width / 2,
+      y: c.height / 2,
+      r: 6,
+      vx: Math.random() > 0.5 ? 4 : -4,
+      vy: Math.random() * 4 - 2
+    };
+
+    score = 0;
+    over = false;
+  }
+
+  function clamp() {
+    if (player.y < 0) player.y = 0;
+    if (player.y + player.h > c.height) player.y = c.height - player.h;
+  }
+
+  function quit() {
+    run = false;
+    document.removeEventListener("keydown", key);
+    c.remove();
+  }
+
+  function hit(p) {
+    return (
+      ball.x - ball.r < p.x + p.w &&
+      ball.x + ball.r > p.x &&
+      ball.y + ball.r > p.y &&
+      ball.y - ball.r < p.y + p.h
+    );
+  }
+
+  function key(e) {
+    if (!run) return;
+
+    if (e.key === "w" || e.key === "ArrowUp") player.y -= 24;
+    if (e.key === "s" || e.key === "ArrowDown") player.y += 24;
+
+    clamp();
+
+    if (e.key === "r" || e.key === "R") reset();
+    if (e.key === "Escape") quit();
+  }
+
+  function loop() {
+    if (!run || over) return;
+
+    x.clearRect(0, 0, c.width, c.height);
+
+    // AI follows ball
+    ai.y += (ball.y - (ai.y + ai.h / 2)) * 0.08;
+    if (ai.y < 0) ai.y = 0;
+    if (ai.y + ai.h > c.height) ai.y = c.height - ai.h;
+
+    // Move ball
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+
+    // Bounce top/bottom
+    if (ball.y < ball.r || ball.y > c.height - ball.r) {
+      ball.vy *= -1;
+    }
+
+    // Player hit
+    if (hit(player)) {
+      ball.vx = Math.abs(ball.vx) + 0.2;
+      ball.vy += (ball.y - (player.y + player.h / 2)) * 0.05;
+      score++;
+      high = Math.max(high, score);
+    }
+
+    // AI hit
+    if (hit(ai)) {
+      ball.vx = -Math.abs(ball.vx);
+    }
+
+    // Lose condition
+    if (ball.x < 0) over = true;
+
+    // Reset ball if right side missed
+    if (ball.x > c.width) {
+      ball.x = c.width / 2;
+      ball.y = c.height / 2;
+      ball.vx = -4;
+      ball.vy = Math.random() * 4 - 2;
+    }
+
+    // Draw paddles
+    x.fillStyle = "black";
+    x.fillRect(player.x, player.y, player.w, player.h);
+    x.fillRect(ai.x, ai.y, ai.w, ai.h);
+
+    // Draw ball
+    x.beginPath();
+    x.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+    x.fill();
+
+    // UI
+    x.font = "18px sans-serif";
+    x.fillText("Score: " + score, 10, 22);
+    x.fillText("High: " + high, c.width - 110, 22);
+
+    if (over) {
+      x.fillStyle = "red";
+      x.font = "28px sans-serif";
+      x.fillText("GAME OVER", 150, 170);
+      x.font = "16px sans-serif";
+      x.fillText("R = Restart   ESC = Quit", 140, 200);
+    } else {
+      requestAnimationFrame(loop);
+    }
+  }
+
+  document.addEventListener("keydown", key);
+
+  reset();
+  requestAnimationFrame(loop);
+})();
+</script>
+
+</body>
+</html>
