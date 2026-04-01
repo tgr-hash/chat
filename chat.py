@@ -457,16 +457,61 @@ class Handler(BaseHTTPRequestHandler):
 # =========================
 # START SERVERS
 # =========================
+
 import os
 import asyncio
 import websockets
 
 PORT = int(os.environ.get("PORT", 8000))
 
-async def main():
-    ws_server = await websockets.serve(handler, "0.0.0.0", PORT)
-    print(f"Server running on port {PORT}")
+HTML_PAGE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat Server</title>
+</head>
+<body>
+    <h1>WebSocket Chat</h1>
+    <input id="msg" placeholder="message">
+    <button onclick="sendMsg()">Send</button>
 
+    <script>
+        const ws = new WebSocket("wss://" + window.location.host);
+
+        ws.onmessage = (event) => {
+            console.log("Received:", event.data);
+        };
+
+        function sendMsg() {
+            const input = document.getElementById("msg");
+            ws.send(input.value);
+            input.value = "";
+        }
+    </script>
+</body>
+</html>
+"""
+
+connected = set()
+
+async def handler(websocket):
+    connected.add(websocket)
+    try:
+        async for message in websocket:
+            for conn in connected:
+                await conn.send(message)
+    finally:
+        connected.remove(websocket)
+
+
+async def main():
+    async def ws_handler(websocket, path=None):
+        if path is None or path == "/":
+            await handler(websocket)
+
+    ws_server = await websockets.serve(ws_handler, "0.0.0.0", PORT)
+
+    print(f"Server running on port {PORT}")
     await ws_server.wait_closed()
 
 asyncio.run(main())
