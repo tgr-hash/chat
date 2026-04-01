@@ -457,14 +457,16 @@ class Handler(BaseHTTPRequestHandler):
 # =========================
 # START SERVERS
 # =========================
+import os
+import asyncio
+import websockets
+
+PORT = int(os.environ.get("PORT", 8000))
+
 async def main():
     ws_server = await websockets.serve(handler, "0.0.0.0", PORT)
     print(f"Server running on port {PORT}")
 
-    http = HTTPServer(("0.0.0.0", PORT), Handler)
-    print(f"HTTP running on port {PORT}")
-
-    await asyncio.get_event_loop().run_in_executor(None, http.serve_forever)
     await ws_server.wait_closed()
 
 asyncio.run(main())
