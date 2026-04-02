@@ -318,7 +318,10 @@ function startChat(){
 // WEBSOCKET
 // =========================
 function connectWebSocket(){
-  new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws")
+  ws = new WebSocket(
+  (location.protocol === "https:" ? "wss://" : "ws://") +
+  location.host +
+  "/ws"
 );
 
   ws.onopen = () => {
