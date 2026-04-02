@@ -12,9 +12,14 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 async def main():
     ws_server = await websockets.serve(handler, "0.0.0.0", PORT)
 
-    http = HTTPServer(("0.0.0.0", PORT), Handler)
-    loop = asyncio.get_event_loop()
-    loop.run_in_executor(None, http.serve_forever)
+    loop = asyncio.get_running_loop()
+
+    # Run HTTP server in separate thread properly
+    def run_http():
+        http = HTTPServer(("0.0.0.0", PORT), Handler)
+        http.serve_forever()
+
+    loop.run_in_executor(None, run_http)
 
     print(f"Running on port {PORT}")
     await ws_server.wait_closed()
