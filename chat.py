@@ -6,6 +6,7 @@ import websockets
 import json
 import time
 import os
+PORT = int(os.environ.get("PORT", 8000))
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 async def main():
