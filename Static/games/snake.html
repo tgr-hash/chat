@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Snake Game</title>
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+
+<script>
+(() => {
+  const canvas = document.createElement("canvas");
+
+  const size = 300;
+  const grid = 10;
+  const cell = size / grid;
+
+  Object.assign(canvas.style, {
+    position: "fixed",
+    left: "50%",
+    top: "50%",
+    transform: "translate(-50%,-50%)",
+    background: "#0e0e0e",
+    border: "2px solid #444",
+    zIndex: 99999
+  });
+
+  canvas.width = size;
+  canvas.height = size;
+  document.body.appendChild(canvas);
+
+  const ctx = canvas.getContext("2d");
+
+  let snake, dir, apple, alive, loop, score = 0, highScore = 0;
+
+  function spawnApple() {
+    let p;
+    do {
+      p = {
+        x: Math.floor(Math.random() * grid),
+        y: Math.floor(Math.random() * grid)
+      };
+    } while (snake.some(s => s.x === p.x && s.y === p.y));
+
+    return p;
+  }
+
+  function drawGrid() {
+    ctx.strokeStyle = "#222";
+
+    for (let i = 0; i <= grid; i++) {
+      ctx.beginPath();
+      ctx.moveTo(i * cell, 0);
+      ctx.lineTo(i * cell, size);
+      ctx.moveTo(0, i * cell);
+      ctx.lineTo(size, i * cell);
+      ctx.stroke();
+    }
+  }
+
+  function drawHUD() {
+    ctx.fillStyle = "#888";
+    ctx.font = "12px monospace";
+    ctx.textBaseline = "top";
+
+    ctx.textAlign = "left";
+    ctx.fillText(`score ${score}`, 6, 6);
+
+    ctx.textAlign = "right";
+    ctx.fillText(`high ${highScore}`, size - 6, 6);
+  }
+
+  function draw() {
+    ctx.fillStyle = "#0e0e0e";
+    ctx.fillRect(0, 0, size, size);
+
+    drawGrid();
+
+    ctx.fillStyle = "#6aff6a";
+    snake.forEach(s => {
+      ctx.fillRect(s.x * cell + 3, s.y * cell + 3, cell - 6, cell - 6);
+    });
+
+    ctx.fillStyle = "#ff5555";
+    ctx.fillRect(apple.x * cell + 4, apple.y * cell + 4, cell - 8, cell - 8);
+
+    drawHUD();
+  }
+
+  function deathScreen() {
+    ctx.fillStyle = "rgba(0,0,0,0.75)";
+    ctx.fillRect(0, 0, size, size);
+
+    ctx.fillStyle = "#aaa";
+    ctx.font = "20px monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("GAME OVER", size / 2, size / 2 - 10);
+
+    ctx.font = "12px monospace";
+    ctx.fillText("R — Reset   ESC — Quit", size / 2, size / 2 + 15);
+  }
+
+  function tick() {
+    if (!alive) return;
+
+    const head = {
+      x: snake[0].x + dir.x,
+      y: snake[0].y + dir.y
+    };
+
+    if (
+      head.x < 0 ||
+      head.y < 0 ||
+      head.x >= grid ||
+      head.y >= grid ||
+      snake.some(s => s.x === head.x && s.y === head.y)
+    ) {
+      alive = false;
+      clearInterval(loop);
+      draw();
+      deathScreen();
+      return;
+    }
+
+    snake.unshift(head);
+
+    if (head.x === apple.x && head.y === apple.y) {
+      score++;
+      if (score > highScore) highScore = score;
+      apple = spawnApple();
+    } else {
+      snake.pop();
+    }
+
+    draw();
+  }
+
+  function resetGame() {
+    snake = [{ x: 5, y: 5 }];
+    dir = { x: 1, y: 0 };
+    apple = spawnApple();
+    alive = true;
+    score = 0;
+
+    draw();
+    clearInterval(loop);
+    loop = setInterval(tick, 300);
+  }
+
+  function cleanup() {
+    clearInterval(loop);
+    window.removeEventListener("keydown", keyHandler);
+    canvas.remove();
+  }
+
+  function keyHandler(e) {
+    if (e.key === "Escape") {
+      cleanup();
+      return;
+    }
+
+    if (e.key.toLowerCase() === "r") {
+      resetGame();
+      return;
+    }
+
+    if (!alive) return;
+
+    const d = {
+      ArrowUp: { x: 0, y: -1 },
+      ArrowDown: { x: 0, y: 1 },
+      ArrowLeft: { x: -1, y: 0 },
+      ArrowRight: { x: 1, y: 0 }
+    }[e.key];
+
+    if (!d) return;
+
+    if (snake.length > 1 && d.x === -dir.x && d.y === -dir.y) return;
+
+    dir = d;
+  }
+
+  window.addEventListener("keydown", keyHandler);
+
+  resetGame();
+})();
+</script>
+
+</body>
+</html>
