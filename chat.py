@@ -18,8 +18,6 @@ async def main():
     print(f"Running on port {PORT}")
     await ws_server.wait_closed()
 
-asyncio.run(main())
-
 # =========================
 # ⚙️ CONFIG
 # =========================
@@ -463,3 +461,5 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self.send_response(404)
             self.end_headers()
+
+asyncio.run(main())
