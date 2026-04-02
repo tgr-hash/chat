@@ -8,11 +8,21 @@ import time
 import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+async def main():
+    ws_server = await websockets.serve(handler, "0.0.0.0", PORT)
+
+    http = HTTPServer(("0.0.0.0", PORT), Handler)
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(None, http.serve_forever)
+
+    print(f"Running on port {PORT}")
+    await ws_server.wait_closed()
+
+asyncio.run(main())
+
 # =========================
 # ⚙️ CONFIG
 # =========================
-import os
-PORT = int(os.environ.get("PORT", 10000))
 FILE = "messages.json"
 
 clients = set()
@@ -453,78 +463,3 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self.send_response(404)
             self.end_headers()
-
-# =========================
-# START SERVERS
-# =========================
-import os
-import asyncio
-import websockets
-from http.server import BaseHTTPRequestHandler, HTTPServer
-
-PORT = int(os.environ.get("PORT", 8000))
-
-# ------------------------
-# Web page (frontend)
-# ------------------------
-HTML = b"""
-<!DOCTYPE html>
-<html>
-<head><title>Chat</title></head>
-<body>
-<h2>Chat</h2>
-<input id="msg" />
-<button onclick="send()">Send</button>
-
-<script>
-const ws = new WebSocket("wss://" + window.location.host);
-
-ws.onmessage = (e) => console.log("Recv:", e.data);
-
-function send() {
-    ws.send(document.getElementById("msg").value);
-}
-</script>
-</body>
-</html>
-"""
-
-# ------------------------
-# HTTP server (serves page)
-# ------------------------
-class Handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
-        self.wfile.write(HTML)
-
-# ------------------------
-# WebSocket logic
-# ------------------------
-clients = set()
-
-async def ws_handler(websocket):
-    clients.add(websocket)
-    try:
-        async for msg in websocket:
-            for c in clients:
-                await c.send(msg)
-    finally:
-        clients.remove(websocket)
-
-# ------------------------
-# Run BOTH servers
-# ------------------------
-async def main():
-    ws_server = await websockets.serve(ws_handler, "0.0.0.0", PORT)
-
-    http = HTTPServer(("0.0.0.0", PORT), Handler)
-
-    loop = asyncio.get_event_loop()
-    loop.run_in_executor(None, http.serve_forever)
-
-    print(f"Running on port {PORT}")
-    await ws_server.wait_closed()
-
-asyncio.run(main())
