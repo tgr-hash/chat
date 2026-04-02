@@ -50,6 +50,9 @@ async def main():
     app.router.add_get("/", index)
     app.router.add_get("/ws", websocket_handler)
 
+    # serve static files (games, etc)
+    app.router.add_static("/static/", path="Static", show_index=True)
+
     runner = web.AppRunner(app)
     await runner.setup()
 
@@ -404,7 +407,7 @@ document.getElementById("msg").addEventListener("keydown", (e) => {
 
 document.getElementById("logoutBtn").addEventListener("click", logout);
 document.getElementById("gameBtn").addEventListener("click", () => {
-  window.location.href = "/games.html";
+  window.location.href = "/static/games.html";
 });
 
 function logout(){
