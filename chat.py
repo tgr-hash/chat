@@ -7,22 +7,59 @@ import json
 import time
 import os
 PORT = int(os.environ.get("PORT", 8000))
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from aiohttp import web
 
 async def main():
-    ws_server = await websockets.serve(handler, "0.0.0.0", PORT)
+    app = web.Application()
 
-    loop = asyncio.get_running_loop()
+    # serve your HTML page
+    async def index(request):
+        return web.Response(text=HTML, content_type="text/html")
 
-    # Run HTTP server in separate thread properly
-    def run_http():
-        http = HTTPServer(("0.0.0.0", PORT), Handler)
-        http.serve_forever()
+    # websocket endpoint
+    async def websocket_handler(request):
+        ws = web.WebSocketResponse()
+        await ws.prepare(request)
 
-    loop.run_in_executor(None, run_http)
+        clients.add(ws)
+
+        # send history
+        await ws.send_str(json.dumps(messages))
+
+        async for msg in ws:
+            if msg.type == web.WSMsgType.TEXT:
+                data = json.loads(msg.data)
+
+                event = {
+                    "name": data.get("name", "anon"),
+                    "msg": data.get("msg", ""),
+                    "type": data.get("type", "msg"),
+                    "time": time.time(),
+                    "color": data.get("color", "#ffffff")
+                }
+
+                messages.append(event)
+                save()
+
+                for c in clients:
+                    await c.send_str(json.dumps([event]))
+
+        clients.remove(ws)
+        return ws
+
+    app.router.add_get("/", index)
+    app.router.add_get("/ws", websocket_handler)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
+    await site.start()
 
     print(f"Running on port {PORT}")
-    await ws_server.wait_closed()
+
+    while True:
+        await asyncio.sleep(3600)
 
 # =========================
 # ⚙️ CONFIG
@@ -281,8 +318,7 @@ function startChat(){
 // WEBSOCKET
 // =========================
 function connectWebSocket(){
-  ws = new WebSocket(
-  (location.protocol === "https:" ? "wss://" : "ws://") + location.host
+  new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws")
 );
 
   ws.onopen = () => {
@@ -429,43 +465,6 @@ function formatTime(t){
 # =========================
 # HTTP SERVER
 # =========================
-class Handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        path = self.path
 
-        # homepage (chat)
-        if path == "/" or path == "/index.html":
-            self.send_response(200)
-            self.send_header("Content-type", "text/html")
-            self.end_headers()
-            self.wfile.write(HTML.encode())
-            return
-
-        # serve static files
-        file_path = "static" + path
-
-        if os.path.exists(file_path) and os.path.isfile(file_path):
-            self.send_response(200)
-
-            if file_path.endswith(".html"):
-                self.send_header("Content-type", "text/html")
-            elif file_path.endswith(".js"):
-                self.send_header("Content-type", "application/javascript")
-            elif file_path.endswith(".css"):
-                self.send_header("Content-type", "text/css")
-            elif file_path.endswith(".png"):
-                self.send_header("Content-type", "image/png")
-            elif file_path.endswith(".jpg") or file_path.endswith(".jpeg"):
-                self.send_header("Content-type", "image/jpeg")
-            elif file_path.endswith(".gif"):
-                self.send_header("Content-type", "image/gif")
-
-            self.end_headers()
-
-            with open(file_path, "rb") as f:
-                self.wfile.write(f.read())
-        else:
-            self.send_response(404)
-            self.end_headers()
 
 asyncio.run(main())
