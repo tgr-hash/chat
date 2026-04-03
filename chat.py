@@ -46,10 +46,10 @@ async def main():
 
                   continue
 
-                ws.name = data.get("name", "anon")
-
+                if data.get("type") != "kick":
+                    ws.name = data.get("name", "anon")
                 event = {
-                "name": ws.name,
+                    "name": data.get("name", "anon"),
                     "msg": data.get("msg", ""),
                     "type": data.get("type", "msg"),
                     "time": time.time(),
@@ -59,7 +59,7 @@ async def main():
                 messages.append(event)
                 save()
 
-                for c in clients:
+                for c in list(clients):
                     await c.send_str(json.dumps([event]))
 
         clients.remove(ws)
@@ -153,6 +153,20 @@ HTML = r"""
 <style>
 body { margin:0; font-family:'Pixelify Sans'; background:white; }
 
+.kickBtn {
+  margin-left:auto;
+  background:red;
+  color:white;
+  border:none;
+  padding:4px 8px;
+  cursor:pointer;
+  font-size:10px;
+}
+
+.kickBtn:hover {
+  opacity:0.8;
+}
+
 #login {
   display:flex;
   justify-content:center;
@@ -216,6 +230,17 @@ body { margin:0; font-family:'Pixelify Sans'; background:white; }
 }
 
 .msg {
+  margin:8px 0;
+  padding:10px;
+  border-radius:10px;
+  max-width:60%;
+  background:black;
+  color:white;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  justify-content:space-between;
+}
   margin:8px 0;
   padding:10px;
   border-radius:10px;
@@ -386,11 +411,11 @@ ws.onmessage = (event) => {
       div.textContent = `[${formatTime(m.time)}] ${m.msg}`;
     } else {
       div.className = "msg";
-      div.innerHTML = `
-        <span class="dot" style="background:${m.color}"></span>
-        <b>${m.name}</b>: ${m.msg}
-        ${isAdmin ? `<button onclick="kickUser('${m.name}')" style="margin-left:10px;">Kick</button>` : ""}
-      `;
+     div.innerHTML = `
+      <span class="dot" style="background:${m.color}"></span>
+      <b>${m.name}</b>: ${m.msg}
+      ${isAdmin ? `<button class="kickBtn" onclick="kickUser('${m.name}')">Kick</button>` : ""}
+    `;
     }
 
     chat.appendChild(div);
