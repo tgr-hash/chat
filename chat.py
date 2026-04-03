@@ -32,19 +32,19 @@ async def main():
             if msg.type == web.WSMsgType.TEXT:
                 data = json.loads(msg.data)
 
-                # handle kick
+                 # handle kick
                 if data.get("type") == "kick":
-                  target = data.get("target")
+                    target = data.get("target")
 
-                for c in list(clients):
-                  if getattr(c, "name", None) == target:
-                    await c.send_str(json.dumps([{
-                      "type": "kick",
-                      "msg": "You were kicked"
-                    }]))
-                    await c.close()
+                    for c in list(clients):
+                        if getattr(c, "name", None) == target:
+                            await c.send_str(json.dumps([{
+                                "type": "kick",
+                                "msg": "You were kicked"
+                            }]))
+                            await c.close()
 
-                  continue
+                    continue
 
                 if data.get("type") != "kick":
                     ws.name = data.get("name", "anon")
@@ -240,16 +240,6 @@ body { margin:0; font-family:'Pixelify Sans'; background:white; }
   align-items:center;
   gap:8px;
   justify-content:space-between;
-}
-  margin:8px 0;
-  padding:10px;
-  border-radius:10px;
-  max-width:60%;
-  background:black;
-  color:white;
-  display:flex;
-  align-items:center;
-  gap:8px;
 }
 
 .dot {
