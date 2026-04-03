@@ -161,6 +161,7 @@ body { margin:0; font-family:'Pixelify Sans'; background:white; }
   padding:4px 8px;
   cursor:pointer;
   font-size:10px;
+  flex-shrink:0;
 }
 
 .kickBtn:hover {
@@ -239,7 +240,6 @@ body { margin:0; font-family:'Pixelify Sans'; background:white; }
   display:flex;
   align-items:center;
   gap:8px;
-  justify-content:space-between;
 }
 
 .dot {
