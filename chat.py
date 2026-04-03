@@ -46,8 +46,18 @@ async def main():
 
                     continue
 
+                if data.get("type") == "typing":
+                    for c in list(clients):
+                        if c != ws:
+                            await c.send_str(json.dumps({
+                                "type": "typing",
+                                "name": ws.name
+                            }))
+                    continue
+
                 if data.get("type") != "kick":
                     ws.name = data.get("name", "anon")
+                    await send_user_list()
                 event = {
                     "name": data.get("name", "anon"),
                     "msg": data.get("msg", ""),
@@ -63,6 +73,7 @@ async def main():
                     await c.send_str(json.dumps([event]))
 
         clients.remove(ws)
+        await send_user_list()
         return ws
 
     app.router.add_get("/", index)
@@ -89,6 +100,23 @@ FILE = "messages.json"
 
 clients = set()
 
+async def send_user_list():
+    users = [
+        {
+            "name": getattr(c, "name", None),
+        }
+        for c in clients
+        if getattr(c, "name", None)
+    ]
+
+    payload = json.dumps({
+        "type": "users",
+        "users": users
+    })
+
+    for c in list(clients):
+        await c.send_str(payload)
+
 # =========================
 # 📁 FILE SETUP
 # =========================
@@ -113,9 +141,10 @@ async def broadcast(data):
 async def handler(ws):
     clients.add(ws)
 
+    ws.name = None  # track username
+
     try:
         await ws.send(json.dumps(messages))
-
         async for msg in ws:
             data = json.loads(msg)
 
@@ -292,7 +321,17 @@ button {
 <div id="chatPage">
   <button id="logoutBtn">Logout</button>
   <button id="gameBtn">Play game instead</button>
-  <div id="chat"></div>
+  <div style="display:flex;">
+  <div id="sidebar" style="width:200px; border-right:1px solid #ddd; padding:10px;">
+    <h3>Users</h3>
+    <div id="users"></div>
+  </div>
+
+  <div style="flex:1;">
+    <div id="chat"></div>
+    <div id="typing" style="font-size:12px; color:gray; padding-left:20px;"></div>
+  </div>
+</div>
 
   <div id="bar">
     <input id="msg" placeholder="message...">
@@ -389,6 +428,42 @@ ws.onmessage = (event) => {
 
   messages.forEach(m => {
 
+  // USER LIST UPDATE
+  if(m.type === "users"){
+    const usersDiv = document.getElementById("users");
+    usersDiv.innerHTML = "";
+
+    m.users.forEach(u => {
+      const row = document.createElement("div");
+      row.style.display = "flex";
+      row.style.alignItems = "center";
+      row.style.marginBottom = "6px";
+
+      row.innerHTML = `
+        <span class="dot" style="background:white; margin-right:6px;"></span>
+        <span>${u.name}</span>
+        ${isAdmin ? `<button class="kickBtn" onclick="kickUser('${u.name}')">Kick</button>` : ""}
+      `;
+
+      usersDiv.appendChild(row);
+    });
+
+    return;
+  }
+
+  // TYPING INDICATOR
+  if(m.type === "typing"){
+    const typingDiv = document.getElementById("typing");
+    typingDiv.textContent = m.name + " is typing...";
+
+    clearTimeout(window._typingTimeout);
+    window._typingTimeout = setTimeout(() => {
+      typingDiv.textContent = "";
+    }, 1500);
+
+    return;
+  }
+
   if(m.type === "kick"){
     alert("You were kicked");
     logout();
@@ -404,7 +479,6 @@ ws.onmessage = (event) => {
      div.innerHTML = `
       <span class="dot" style="background:${m.color}"></span>
       <b>${m.name}</b>: ${m.msg}
-      ${isAdmin ? `<button class="kickBtn" onclick="kickUser('${m.name}')">Kick</button>` : ""}
     `;
     }
 
@@ -447,7 +521,18 @@ function send(){
 }
 
 // ENTER KEY
+let lastTyping = 0;
+
 document.getElementById("msg").addEventListener("keydown", (e) => {
+  const now = Date.now();
+
+  if(now - lastTyping > 500){
+    ws.send(JSON.stringify({
+      type: "typing",
+      name
+    }));
+    lastTyping = now;
+  }
   if(e.key === "Enter"){
     e.preventDefault();
     send();
