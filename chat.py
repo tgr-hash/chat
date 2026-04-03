@@ -162,38 +162,6 @@ async def broadcast(data):
         await asyncio.gather(*[c.send(data) for c in clients])
 
 # =========================
-# 🌐 WEBSOCKET SERVER
-# =========================
-async def handler(ws):
-    clients.add(ws)
-
-    ws.name = None  # track username
-
-    try:
-        await ws.send(json.dumps(messages))
-        async for msg in ws:
-            data = json.loads(msg)
-
-            event = {
-                "name": data.get("name", "anon"),
-               "msg": data.get("msg", ""),
-               "type": data.get("type", "msg"),
-                "time": time.time(),
-                "color": data.get("color", "#ffffff"),
-                "reactions": {}   # NEW
-            }
-
-            messages.append(event)
-            save()
-
-            await broadcast(json.dumps([event]))
-
-    except:
-        pass
-    finally:
-        clients.remove(ws)
-
-# =========================
 # 💬 FRONTEND HTML
 # =========================
 
