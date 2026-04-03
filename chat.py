@@ -45,30 +45,7 @@ async def main():
                             await c.close()
 
                     continue
-
-
-
-                if data.get("type") == "react":
-                    idx = data.get("index")
-                    emoji = data.get("emoji")
-
-                    if 0 <= idx < len(messages):
-                        msg = messages[idx]
-
-                        if "reactions" not in msg:
-                            msg["reactions"] = {}
-
-                        msg["reactions"][emoji] = msg["reactions"].get(emoji, 0) + 1
-                        save()
-
-                        await broadcast(json.dumps([{
-                            "type": "reaction_update",
-                            "index": idx,
-                            "emoji": emoji,
-                            "count": msg["reactions"][emoji]
-                        }]))
-
-                    continue
+                
 
 
                 if data.get("type") == "typing":
@@ -85,11 +62,11 @@ async def main():
                     ws.name = data.get("name", "anon")
                     await send_user_list()
                 event = {
-                    "name": data.get("name", "anon"),
-                    "msg": data.get("msg", ""),
-                    "type": data.get("type", "msg"),
-                    "time": time.time(),
-                    "color": data.get("color", "#ffffff")
+                  "name": data.get("name", "anon"),
+                  "msg": data.get("msg", ""),
+                  "type": data.get("type", "msg"),
+                  "time": time.time(),
+                  "color": data.get("color", "#ffffff")
                 }
 
                 messages.append(event)
@@ -158,8 +135,11 @@ def save():
         json.dump(messages, f)
 
 async def broadcast(data):
-    if clients:
-        await asyncio.gather(*[c.send(data) for c in clients])
+    for c in list(clients):
+        try:
+            await c.send_str(data)
+        except:
+            clients.remove(c)
 
 # =========================
 # 💬 FRONTEND HTML
@@ -467,39 +447,23 @@ ws.onmessage = (event) => {
 const div = document.createElement("div");
 div.dataset.index = i;
 
-if(m.type === "event"){
+if (m.type === "event") {
   div.className = "event";
   div.textContent = `[${formatTime(m.time)}] ${m.msg}`;
 } else {
   div.className = "msg";
 
-  let reactionHTML = "";
+  div.innerHTML = `
+    <span class="dot" style="background:${m.color}"></span>
+    <b>${m.name}</b>: ${m.msg}
+  `;
+}
 
   if(m.reactions){
     for(const [emoji, count] of Object.entries(m.reactions)){
       reactionHTML += `<span style="margin-left:6px;font-size:12px;">${emoji} ${count}</span>`;
     }
   }
-
-  div.innerHTML = `
-    <span class="dot" style="background:${m.color}"></span>
-    <b>${m.name}</b>: ${m.msg}
-    <div class="reactions">${reactionHTML}</div>
-    <div class="reactBar" style="display:none; gap:5px; margin-top:4px;">
-      <button onclick="react(${i}, '👍')">👍</button>
-      <button onclick="react(${i}, '😂')">😂</button>
-      <button onclick="react(${i}, '🔥')">🔥</button>
-    </div>
-  `;
-
-  div.onmouseenter = () => {
-    div.querySelector(".reactBar").style.display = "flex";
-  };
-
-  div.onmouseleave = () => {
-    div.querySelector(".reactBar").style.display = "none";
-  };
-}
 
     chat.appendChild(div);
   });
@@ -585,14 +549,6 @@ function handleCommand(msg){
     }
     return;
   }
-}
-
-function react(index, emoji){
-  ws.send(JSON.stringify({
-    type: "react",
-    index,
-    emoji
-  }));
 }
 
 // ENTER KEY
