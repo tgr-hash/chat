@@ -23,6 +23,8 @@ async def main():
 
         clients.add(ws)
 
+        ws.name = None  # track username
+
         # send history
         await ws.send_str(json.dumps(messages))
 
@@ -30,8 +32,24 @@ async def main():
             if msg.type == web.WSMsgType.TEXT:
                 data = json.loads(msg.data)
 
+                # handle kick
+                if data.get("type") == "kick":
+                  target = data.get("target")
+
+                for c in list(clients):
+                  if getattr(c, "name", None) == target:
+                    await c.send_str(json.dumps([{
+                      "type": "kick",
+                      "msg": "You were kicked"
+                    }]))
+                    await c.close()
+
+                  continue
+
+                ws.name = data.get("name", "anon")
+
                 event = {
-                    "name": data.get("name", "anon"),
+                "name": ws.name,
                     "msg": data.get("msg", ""),
                     "type": data.get("type", "msg"),
                     "time": time.time(),
@@ -355,6 +373,12 @@ ws.onmessage = (event) => {
   isFirstLoad = false;
 
   messages.forEach(m => {
+
+  if(m.type === "kick"){
+    alert("You were kicked");
+    logout();
+    return;
+  }
     const div = document.createElement("div");
 
     if(m.type === "event"){
@@ -365,6 +389,7 @@ ws.onmessage = (event) => {
       div.innerHTML = `
         <span class="dot" style="background:${m.color}"></span>
         <b>${m.name}</b>: ${m.msg}
+        ${isAdmin ? `<button onclick="kickUser('${m.name}')" style="margin-left:10px;">Kick</button>` : ""}
       `;
     }
 
@@ -382,6 +407,15 @@ ws.onmessage = (event) => {
 // =========================
 // SEND
 // =========================
+function kickUser(target){
+  if(!isAdmin) return;
+
+  ws.send(JSON.stringify({
+    type: "kick",
+    target
+  }));
+}
+
 function send(){
   const msgEl = document.getElementById("msg");
   const msg = msgEl.value.trim();
