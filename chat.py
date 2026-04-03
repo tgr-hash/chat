@@ -46,6 +46,31 @@ async def main():
 
                     continue
 
+
+
+                if data.get("type") == "react":
+                    idx = data.get("index")
+                    emoji = data.get("emoji")
+
+                    if 0 <= idx < len(messages):
+                        msg = messages[idx]
+
+                        if "reactions" not in msg:
+                            msg["reactions"] = {}
+
+                        msg["reactions"][emoji] = msg["reactions"].get(emoji, 0) + 1
+                        save()
+
+                        await broadcast(json.dumps([{
+                            "type": "reaction_update",
+                            "index": idx,
+                            "emoji": emoji,
+                            "count": msg["reactions"][emoji]
+                        }]))
+
+                    continue
+
+
                 if data.get("type") == "typing":
                     for c in list(clients):
                         if c != ws:
@@ -54,6 +79,7 @@ async def main():
                                 "name": ws.name
                             }))
                     continue
+
 
                 if data.get("type") != "kick":
                     ws.name = data.get("name", "anon")
@@ -96,7 +122,7 @@ async def main():
 # =========================
 # ⚙️ CONFIG
 # =========================
-FILE = "messages.json"
+FILE = "/tmp/messages.json"
 
 clients = set()
 
@@ -150,10 +176,11 @@ async def handler(ws):
 
             event = {
                 "name": data.get("name", "anon"),
-                "msg": data.get("msg", ""),
-                "type": data.get("type", "msg"),
+               "msg": data.get("msg", ""),
+               "type": data.get("type", "msg"),
                 "time": time.time(),
-                "color": data.get("color", "#ffffff")
+                "color": data.get("color", "#ffffff"),
+                "reactions": {}   # NEW
             }
 
             messages.append(event)
@@ -469,18 +496,42 @@ ws.onmessage = (event) => {
     logout();
     return;
   }
-    const div = document.createElement("div");
+const div = document.createElement("div");
+div.dataset.index = i;
 
-    if(m.type === "event"){
-      div.className = "event";
-      div.textContent = `[${formatTime(m.time)}] ${m.msg}`;
-    } else {
-      div.className = "msg";
-     div.innerHTML = `
-      <span class="dot" style="background:${m.color}"></span>
-      <b>${m.name}</b>: ${m.msg}
-    `;
+if(m.type === "event"){
+  div.className = "event";
+  div.textContent = `[${formatTime(m.time)}] ${m.msg}`;
+} else {
+  div.className = "msg";
+
+  let reactionHTML = "";
+
+  if(m.reactions){
+    for(const [emoji, count] of Object.entries(m.reactions)){
+      reactionHTML += `<span style="margin-left:6px;font-size:12px;">${emoji} ${count}</span>`;
     }
+  }
+
+  div.innerHTML = `
+    <span class="dot" style="background:${m.color}"></span>
+    <b>${m.name}</b>: ${m.msg}
+    <div class="reactions">${reactionHTML}</div>
+    <div class="reactBar" style="display:none; gap:5px; margin-top:4px;">
+      <button onclick="react(${i}, '👍')">👍</button>
+      <button onclick="react(${i}, '😂')">😂</button>
+      <button onclick="react(${i}, '🔥')">🔥</button>
+    </div>
+  `;
+
+  div.onmouseenter = () => {
+    div.querySelector(".reactBar").style.display = "flex";
+  };
+
+  div.onmouseleave = () => {
+    div.querySelector(".reactBar").style.display = "none";
+  };
+}
 
     chat.appendChild(div);
   });
@@ -510,6 +561,15 @@ function send(){
   const msg = msgEl.value.trim();
   if(!msg) return;
 
+  // =========================
+  // COMMAND SYSTEM
+  // =========================
+  if(msg.startsWith("/")){
+    handleCommand(msg);
+    msgEl.value = "";
+    return;
+  }
+
   ws.send(JSON.stringify({
     type: "msg",
     name,
@@ -518,6 +578,53 @@ function send(){
   }));
 
   msgEl.value = "";
+}
+
+function handleCommand(msg){
+  const parts = msg.split(" ");
+  const cmd = parts[0];
+
+  if(cmd === "/clear"){
+    document.getElementById("chat").innerHTML = "";
+    return;
+  }
+
+  if(cmd === "/help"){
+    alert("/clear /help /roll /color");
+    return;
+  }
+
+  if(cmd === "/roll"){
+    const range = parts[1]?.split("-") || ["1","100"];
+    const min = parseInt(range[0]);
+    const max = parseInt(range[1]);
+    const result = Math.floor(Math.random()*(max-min+1))+min;
+
+    ws.send(JSON.stringify({
+      type:"msg",
+      name:"system",
+      msg:`🎲 ${result}`,
+      color:"#888"
+    }));
+    return;
+  }
+
+  if(cmd === "/color"){
+    const c = parts[1];
+    if(/^#([0-9A-Fa-f]{6})$/.test(c)){
+      color = c;
+      localStorage.setItem("chat_color", color);
+    }
+    return;
+  }
+}
+
+function react(index, emoji){
+  ws.send(JSON.stringify({
+    type: "react",
+    index,
+    emoji
+  }));
 }
 
 // ENTER KEY
