@@ -453,7 +453,7 @@ ws.onmessage = (event) => {
 
   isFirstLoad = false;
 
-  messages.forEach(m => {
+  messages.forEach((m, i) => {
 
   // USER LIST UPDATE
   if(m.type === "users"){
