@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>2P Pong</title>
+  <style>
+    body {
+      margin: 0;
+      background: #111;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+
+<script>
+(() => {
+  if (document.getElementById("pong2P")) return;
+
+  const c = document.createElement("canvas");
+  c.id = "pong2P";
+  c.width = 600;
+  c.height = 350;
+
+  Object.assign(c.style, {
+    position: "absolute",
+    left: "50%",
+    top: "50%",
+    transform: "translate(-50%,-50%)",
+    zIndex: 999999999,
+    border: "4px solid #333",
+    borderRadius: "10px",
+    background: "#fff"
+  });
+
+  document.body.appendChild(c);
+
+  const x = c.getContext("2d");
+
+  const paddleH = 70, paddleW = 12;
+
+  let lp = { x: 15, y: 140, v: 0 };
+  let rp = { x: c.width - 27, y: 140, v: 0 };
+
+  let ball = { x: 300, y: 175, r: 6, vx: 4, vy: 2 };
+
+  let ls = 0, rs = 0;
+  let running = true;
+
+  const keys = {};
+
+  function reset(dir = 1) {
+    ball.x = c.width / 2;
+    ball.y = c.height / 2;
+    ball.vx = 4 * dir;
+    ball.vy = Math.random() * 4 - 2;
+  }
+
+  function clamp(p) {
+    p.y = Math.max(0, Math.min(c.height - paddleH, p.y));
+  }
+
+  function hit(p) {
+    return (
+      ball.x - ball.r < p.x + paddleW &&
+      ball.x + ball.r > p.x &&
+      ball.y + ball.r > p.y &&
+      ball.y - ball.r < p.y + paddleH
+    );
+  }
+
+  function quit() {
+    running = false;
+    document.removeEventListener("keydown", key);
+    document.removeEventListener("keyup", key);
+    c.remove();
+  }
+
+  function loop() {
+    if (!running) return;
+
+    lp.v = (keys.w ? -6 : 0) + (keys.s ? 6 : 0);
+    rp.v = (keys.ArrowUp ? -6 : 0) + (keys.ArrowDown ? 6 : 0);
+
+    lp.y += lp.v;
+    rp.y += rp.v;
+
+    clamp(lp);
+    clamp(rp);
+
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+
+    if (ball.y < ball.r || ball.y > c.height - ball.r) {
+      ball.vy *= -1;
+    }
+
+    if (hit(lp)) {
+      ball.vx = Math.abs(ball.vx);
+      ball.vy += (ball.y - (lp.y + paddleH / 2)) * 0.05;
+    }
+
+    if (hit(rp)) {
+      ball.vx = -Math.abs(ball.vx);
+      ball.vy += (ball.y - (rp.y + paddleH / 2)) * 0.05;
+    }
+
+    if (ball.x < 0) {
+      rs++;
+      reset(1);
+    }
+
+    if (ball.x > c.width) {
+      ls++;
+      reset(-1);
+    }
+
+    x.clearRect(0, 0, c.width, c.height);
+
+    x.fillStyle = "black";
+    x.fillRect(lp.x, lp.y, paddleW, paddleH);
+    x.fillRect(rp.x, rp.y, paddleW, paddleH);
+
+    x.beginPath();
+    x.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+    x.fill();
+
+    x.font = "18px sans-serif";
+    x.fillText(ls, c.width / 2 - 40, 25);
+    x.fillText(rs, c.width / 2 + 25, 25);
+
+    requestAnimationFrame(loop);
+  }
+
+  function key(e) {
+    keys[e.key] = e.type === "keydown";
+    if (e.key === "Escape") quit();
+  }
+
+  document.addEventListener("keydown", key);
+  document.addEventListener("keyup", key);
+
+  reset(Math.random() > 0.5 ? 1 : -1);
+  requestAnimationFrame(loop);
+})();
+</script>
+
+</body>
+</html>

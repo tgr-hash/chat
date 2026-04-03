@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Breakout Game</title>
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+
+<script>
+(() => {
+  if (document.getElementById("breakoutGame")) return;
+
+  const c = document.createElement("canvas");
+  c.id = "breakoutGame";
+  c.width = 500;
+  c.height = 400;
+
+  Object.assign(c.style, {
+    position: "fixed",
+    left: "50%",
+    top: "50%",
+    transform: "translate(-50%,-50%)",
+    zIndex: 999999999,
+    border: "4px solid #333",
+    background: "#fff"
+  });
+
+  document.body.appendChild(c);
+
+  const x = c.getContext("2d");
+
+  let paddle, ball, blocks = [], particles = [];
+  let score = 0, high = 0, level = 1, lives = 3;
+  let gameOver = false, running = true;
+  let keys = {}, useMouse = false;
+
+  const themes = [
+    "#8ecae6", "red", "orange", "yellow",
+    "green", "#023047", "purple", "black"
+  ];
+
+  function quit() {
+    running = false;
+    c.remove();
+  }
+
+  function spawnBlocks() {
+    blocks = [];
+
+    const w = 13, h = 5;
+    const cols = 20, rows = 5;
+    const sp = 3;
+
+    const total = cols * w + (cols - 1) * sp;
+    const startX = (c.width - total) / 2;
+    const startY = 40;
+
+    for (let r = 0; r < rows; r++) {
+      for (let i = 0; i < cols; i++) {
+        blocks.push({
+          x: startX + i * (w + sp),
+          y: startY + r * (h + sp),
+          w,
+          h
+        });
+      }
+    }
+  }
+
+  function spawnParticles() {
+    particles = [];
+    for (let i = 0; i < 10; i++) {
+      particles.push({
+        x: paddle.x + paddle.w / 2,
+        y: paddle.y,
+        w: 5,
+        h: 10,
+        vx: Math.random() * 4 - 2,
+        vy: Math.random() * -4 - 1,
+        life: 60
+      });
+    }
+  }
+
+  function reset() {
+    paddle = {
+      x: c.width / 2 - 12.5,
+      y: c.height - 25,
+      w: 25,
+      h: 5,
+      color: "green"
+    };
+
+    ball = {
+      x: c.width / 2,
+      y: paddle.y - 10,
+      r: 3.5,
+      vx: (Math.random() - 0.5) * 2,
+      vy: -2
+    };
+
+    score = 0;
+    lives = 3;
+    level = 1;
+    gameOver = false;
+    particles = [];
+
+    spawnBlocks();
+  }
+
+  document.addEventListener("mousemove", e => {
+    const r = c.getBoundingClientRect();
+
+    useMouse =
+      e.clientX >= r.left &&
+      e.clientX <= r.right &&
+      e.clientY >= r.top &&
+      e.clientY <= r.bottom;
+
+    if (useMouse) {
+      paddle.x = e.clientX - r.left - paddle.w / 2;
+    }
+  });
+
+  document.addEventListener("keydown", e => {
+    keys[e.key] = true;
+
+    if (gameOver && (e.key === "r" || e.key === "R")) reset();
+    if (e.key === "Escape") quit();
+  });
+
+  document.addEventListener("keyup", e => {
+    keys[e.key] = false;
+  });
+
+  function loop() {
+    if (!running) return;
+
+    const theme = themes[(level - 1) % themes.length];
+
+    if (!gameOver) {
+      if (!useMouse) {
+        if (keys.a || keys.ArrowLeft) paddle.x -= 4;
+        if (keys.d || keys.ArrowRight) paddle.x += 4;
+      }
+
+      paddle.x = Math.max(0, Math.min(c.width - paddle.w, paddle.x));
+
+      ball.x += ball.vx;
+      ball.y += ball.vy;
+
+      if (ball.x < ball.r || ball.x > c.width - ball.r) ball.vx *= -1;
+      if (ball.y < ball.r) ball.vy *= -1;
+
+      // paddle collision
+      if (
+        ball.x > paddle.x &&
+        ball.x < paddle.x + paddle.w &&
+        ball.y + ball.r > paddle.y &&
+        ball.y < paddle.y + paddle.h
+      ) {
+        let hit = (ball.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2);
+        hit += (Math.random() - 0.5) * 0.2;
+
+        const s = 2;
+        ball.vx = hit * s;
+        ball.vy = -Math.abs(s);
+        ball.y = paddle.y - ball.r;
+      }
+
+      // block collision
+      blocks.forEach((b, i) => {
+        if (
+          ball.x > b.x &&
+          ball.x < b.x + b.w &&
+          ball.y > b.y &&
+          ball.y < b.y + b.h
+        ) {
+          blocks.splice(i, 1);
+          score++;
+          high = Math.max(high, score);
+          ball.vx += (Math.random() - 0.5) * 0.6;
+          ball.vy *= -1;
+        }
+      });
+
+      // lose life
+      if (ball.y > c.height) {
+        lives--;
+        spawnParticles();
+
+        paddle.color =
+          ["green", "lime", "cyan"][lives] || "gray";
+
+        if (lives <= 0) {
+          gameOver = true;
+        } else {
+          ball.x = c.width / 2;
+          ball.y = paddle.y - 10;
+          ball.vx = Math.random() - 0.5;
+          ball.vy = -2;
+        }
+      }
+
+      if (blocks.length === 0) {
+        level++;
+        spawnBlocks();
+      }
+    }
+
+    // draw
+    x.clearRect(0, 0, c.width, c.height);
+
+    x.fillStyle = theme;
+    blocks.forEach(b => x.fillRect(b.x, b.y, b.w, b.h));
+
+    x.fillStyle = paddle.color;
+    x.fillRect(paddle.x, paddle.y, paddle.w, paddle.h);
+
+    x.beginPath();
+    x.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+    x.fill();
+
+    x.fillStyle = "orange";
+    particles.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.2;
+      p.life--;
+      x.fillRect(p.x, p.y, p.w, p.h);
+    });
+
+    particles = particles.filter(p => p.life > 0);
+
+    x.fillStyle = "black";
+    x.font = "14px sans-serif";
+    x.fillText("Score: " + score, 10, 18);
+    x.fillText("Level: " + level, c.width / 2 - 25, 18);
+    x.fillText("High: " + high, c.width - 90, 18);
+
+    for (let i = 0; i < lives; i++) {
+      x.fillStyle = ["green", "lime", "cyan"][i];
+      x.fillRect(c.width - 30 - i * 30, c.height - 15, 25, 5);
+    }
+
+    if (gameOver) {
+      x.fillStyle = "red";
+      x.font = "26px sans-serif";
+      x.fillText("GAME OVER", 150, 200);
+
+      x.font = "14px sans-serif";
+      x.fillText("R = Reset   ESC = Quit", 140, 225);
+    }
+
+    requestAnimationFrame(loop);
+  }
+
+  reset();
+  loop();
+})();
+</script>
+
+</body>
+</html>
