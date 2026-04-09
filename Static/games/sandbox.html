@@ -18,12 +18,15 @@
 
   const B = 3, R = 60, D = R * 2, U = 50;
   const W = D, H = D;
-  const A = 0, S = 1, WTR = 2, SD = 3;
+  const A = 0, S = 1, WTR = 2, SD = 3, DR = 4;
+  const STEP_MS = 50;
+  const STEPS_PER_TICK = 2;
 
   const M = [
     { id: S, n: "Block", c: "#000" },
     { id: WTR, n: "Water", c: "#1e90ff" },
-    { id: SD, n: "Sand", c: "#d2b48c" }
+    { id: SD, n: "Sand", c: "#d2b48c" },
+    { id: DR, n: "Drain", c: "#d62828" }
   ];
 
   let sel = S, md = false, erase = false, bs = 1;
@@ -62,6 +65,25 @@
 
         const v = g[y][x0];
 
+        if (v === DR) {
+          const ns = [
+            [0, -1],
+            [0, 1],
+            [-1, 0],
+            [1, 0]
+          ];
+
+          for (const [dx, dy] of ns) {
+            const nx = x0 + dx;
+            const ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+            if (!inside(nx, ny)) continue;
+            if (g[ny][nx] === WTR) g[ny][nx] = A;
+          }
+
+          continue;
+        }
+
         if (v === SD) {
           const ny = y + 1;
           if (inside(x0, ny)) {
@@ -94,7 +116,9 @@
     }
   };
 
-  setInterval(step, 250);
+  setInterval(() => {
+    for (let i = 0; i < STEPS_PER_TICK; i++) step();
+  }, STEP_MS);
 
   const draw = () => {
     x.clearRect(0, 0, c.width, c.height);
@@ -119,7 +143,7 @@
     x.fillRect(0, H * B, c.width, U);
 
     M.forEach((m, i) => {
-      const px = 15 + i * 90, py = H * B + 10;
+      const px = 15 + i * 80, py = H * B + 10;
       x.fillStyle = m.c;
       x.fillRect(px, py, 24, 24);
       x.fillStyle = "#000";
@@ -163,7 +187,7 @@
 
     if (my > H * B) {
       M.forEach((m, i) => {
-        const px = 15 + i * 90, py = H * B + 10;
+        const px = 15 + i * 80, py = H * B + 10;
         if (mx >= px && mx <= px + 24 && my >= py && my <= py + 24) {
           sel = m.id;
         }
