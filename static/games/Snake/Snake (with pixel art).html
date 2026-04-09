@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Snake Game</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap" rel="stylesheet">
+
+<style>
+  body {
+    margin: 0;
+    background: black;
+    overflow: hidden;
+    font-family: "Pixelify Sans", monospace;
+  }
+</style>
+</head>
+
+<body>
+<script>
+(() => {
+
+  // =========================
+  // CONFIG
+  // =========================
+  const grid = 10;
+  const cell = 36;
+  const size = grid * cell;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+
+  Object.assign(canvas.style, {
+    position: "absolute",
+    left: "50%",
+    top: "50%",
+    transform: "translate(-50%, -50%)",
+    imageRendering: "pixelated",
+    border: "2px solid #333"
+  });
+
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext("2d");
+
+  // =========================
+  // STATE
+  // =========================
+  let snake = [];
+  let dir = { x: 1, y: 0 };
+  let apple = null;
+  let alive = true;
+  let score = 0;
+  let tickTimer = null;
+
+  // =========================
+  // LOAD IMAGES
+  // =========================
+  function load(name) {
+    const img = new Image();
+    img.src = `./assets/${name}.png`;
+    return img;
+  }
+
+  const imgs = {
+    head: {
+      up: load("headup"),
+      down: load("headdown"),
+      left: load("headleft"),
+      right: load("headright")
+    },
+    body: {
+      vertical: load("bodyupanddown"),
+      horizontal: load("bodyleftandright")
+    },
+    tail: {
+      up: load("tailup"),
+      down: load("taildown"),
+      left: load("tailleft"),
+      right: load("tailright")
+    },
+    corner: {
+      ul: load("cornerupandleft"),
+      ur: load("cornerupandright"),
+      dl: load("cornerleftanddown"),
+      dr: load("cornerdownandright")
+    }
+  };
+
+  const appleImg = load("apple");
+
+  // =========================
+  // HELPERS
+  // =========================
+  const same = (a, b) => a.x === b.x && a.y === b.y;
+
+  function getDir(a, b) {
+    return { x: b.x - a.x, y: b.y - a.y };
+  }
+
+  function dirKey(d) {
+    if (d.x === 0 && d.y === -1) return "UP";
+    if (d.x === 0 && d.y === 1) return "DOWN";
+    if (d.x === -1 && d.y === 0) return "LEFT";
+    if (d.x === 1 && d.y === 0) return "RIGHT";
+  }
+
+  function drawRotated(img, x, y, angle) {
+    ctx.save();
+    ctx.translate(x + cell / 2, y + cell / 2);
+    ctx.rotate(angle);
+    ctx.drawImage(img, -cell / 2, -cell / 2, cell, cell);
+    ctx.restore();
+  }
+
+  function angleForDir(direction) {
+    if (direction === "RIGHT") return 0;
+    if (direction === "DOWN") return Math.PI / 2;
+    if (direction === "LEFT") return Math.PI;
+    return -Math.PI / 2;
+  }
+
+  function getStraightAngle(prevDir, nextDir) {
+    if (prevDir.x !== 0 && nextDir.x !== 0) return 0;
+    return Math.PI / 2;
+  }
+
+  function getCornerAngle(prevDir, nextDir) {
+    const dirs = [dirKey(prevDir), dirKey(nextDir)].sort().join("-");
+
+    if (dirs === "RIGHT-UP") return 0;
+    if (dirs === "DOWN-RIGHT") return Math.PI / 2;
+    if (dirs === "DOWN-LEFT") return Math.PI;
+    return -Math.PI / 2;
+  }
+
+  // =========================
+  // RESET
+  // =========================
+  function reset() {
+    snake = [{ x: 5, y: 5 }];
+    dir = { x: 1, y: 0 };
+    score = 0;
+    alive = true;
+
+    spawnApple();
+
+    if (tickTimer) clearInterval(tickTimer);
+    tickTimer = setInterval(tick, 180);
+
+    draw();
+  }
+
+  function spawnApple() {
+    do {
+      apple = {
+        x: Math.floor(Math.random() * grid),
+        y: Math.floor(Math.random() * grid)
+      };
+    } while (snake.some(s => same(s, apple)));
+  }
+
+  // =========================
+  // INPUT
+  // =========================
+  window.addEventListener("keydown", (e) => {
+
+    if (e.key === "r" || e.key === "R") {
+      reset();
+      return;
+    }
+
+    if (!alive) return;
+
+    const map = {
+      ArrowUp: { x: 0, y: -1 },
+      ArrowDown: { x: 0, y: 1 },
+      ArrowLeft: { x: -1, y: 0 },
+      ArrowRight: { x: 1, y: 0 }
+    };
+
+    const nd = map[e.key];
+    if (!nd) return;
+
+    if (snake.length > 1 &&
+        nd.x === -dir.x &&
+        nd.y === -dir.y) return;
+
+    dir = nd;
+  });
+
+  // =========================
+  // DRAW BOARD
+  // =========================
+  function drawBoard() {
+    for (let x = 0; x < grid; x++) {
+      for (let y = 0; y < grid; y++) {
+        ctx.fillStyle = (x + y) % 2 ? "#B3D761" : "#9ECA54";
+        ctx.fillRect(x * cell, y * cell, cell, cell);
+      }
+    }
+  }
+
+  // =========================
+  // SNAKE DRAW (FIXED CORE)
+  // =========================
+  function drawSnake() {
+
+    for (let i = 0; i < snake.length; i++) {
+      const seg = snake[i];
+      const x = seg.x * cell;
+      const y = seg.y * cell;
+
+      // HEAD
+      if (i === 0) {
+        drawRotated(imgs.head.right, x, y, angleForDir(dirKey(dir)));
+        continue;
+      }
+
+      // TAIL
+      if (i === snake.length - 1) {
+        const prev = snake[i - 1];
+        const d = getDir(prev, seg);
+        drawRotated(imgs.tail.left, x, y, angleForDir(dirKey(d)));
+        continue;
+      }
+
+      // BODY
+      const prev = snake[i - 1];
+      const next = snake[i + 1];
+
+      const prevDir = getDir(seg, prev);
+      const nextDir = getDir(seg, next);
+      const isStraight = prevDir.x === nextDir.x || prevDir.y === nextDir.y;
+
+      if (isStraight) {
+        drawRotated(imgs.body.horizontal, x, y, getStraightAngle(prevDir, nextDir));
+      } else {
+        drawRotated(imgs.corner.ur, x, y, getCornerAngle(prevDir, nextDir));
+      }
+    }
+  }
+
+  // =========================
+  // DRAW FRAME
+  // =========================
+  function draw() {
+    drawBoard();
+
+    ctx.drawImage(appleImg, apple.x * cell, apple.y * cell, cell, cell);
+
+    drawSnake();
+
+    ctx.fillStyle = "#000";
+    ctx.font = "14px Pixelify Sans";
+    ctx.fillText("Score: " + score, 8, 16);
+
+    if (!alive) {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+      ctx.fillRect(0, 0, size, size);
+
+      ctx.fillStyle = "#fff";
+      ctx.textAlign = "center";
+      ctx.font = "28px Pixelify Sans";
+      ctx.fillText("GAME OVER", size / 2, size / 2 - 6);
+      ctx.font = "16px Pixelify Sans";
+      ctx.fillText("Press R to restart", size / 2, size / 2 + 20);
+      ctx.textAlign = "left";
+    }
+  }
+
+  // =========================
+  // GAME LOOP
+  // =========================
+  function tick() {
+    if (!alive) return;
+
+    const head = {
+      x: snake[0].x + dir.x,
+      y: snake[0].y + dir.y
+    };
+
+    if (
+      head.x < 0 || head.y < 0 ||
+      head.x >= grid || head.y >= grid ||
+      snake.some(s => same(s, head))
+    ) {
+      alive = false;
+      clearInterval(tickTimer);
+      draw();
+      return;
+    }
+
+    snake.unshift(head);
+
+    if (same(head, apple)) {
+      score++;
+      spawnApple();
+    } else {
+      snake.pop();
+    }
+
+    draw();
+  }
+
+  // =========================
+  // START
+  // =========================
+  reset();
+
+})();
+</script>
+</body>
+</html>
