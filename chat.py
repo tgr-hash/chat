@@ -57,6 +57,34 @@ async def main():
                             }))
                     continue
 
+                if data.get("type") == "private_msg":
+                    ws.name = data.get("name", "anon")
+                    await send_user_list()
+
+                    target = data.get("target")
+                    event = {
+                        "name": data.get("name", "anon"),
+                        "msg": data.get("msg", ""),
+                        "type": "private_msg",
+                        "time": time.time(),
+                        "color": data.get("color", "#ffffff"),
+                        "target": target
+                    }
+
+                    recipients = []
+                    for c in list(clients):
+                        if c == ws or getattr(c, "name", None) == target:
+                            recipients.append(c)
+
+                    delivered = set()
+                    for c in recipients:
+                        if c in delivered:
+                            continue
+                        await c.send_str(json.dumps([event]))
+                        delivered.add(c)
+
+                    continue
+
 
                 if data.get("type") != "kick":
                     ws.name = data.get("name", "anon")
@@ -169,6 +197,20 @@ body { margin:0; font-family:'Pixelify Sans'; background:white; }
 }
 
 .kickBtn:hover {
+  opacity:0.8;
+}
+
+.messageBtn {
+  background:black;
+  color:white;
+  border:none;
+  padding:4px 8px;
+  cursor:pointer;
+  font-size:10px;
+  flex-shrink:0;
+}
+
+.messageBtn:hover {
   opacity:0.8;
 }
 
@@ -297,12 +339,16 @@ button {
   <button id="logoutBtn">Logout</button>
   <button id="gameBtn">Play game instead</button>
   <div style="display:flex;">
-  <div id="sidebar" style="width:200px; border-right:1px solid #ddd; padding:10px;">
+  <div id="sidebar" style="width:280px; border-right:1px solid #ddd; padding:10px;">
     <h3>Users</h3>
     <div id="users"></div>
   </div>
 
   <div style="flex:1;">
+    <div id="privateBanner" style="display:none; margin:12px 20px 0; padding:10px 12px; background:#f3f3f3; border:1px solid #ddd; align-items:center; justify-content:space-between; gap:10px;">
+      <span id="privateBannerText"></span>
+      <button id="clearPrivateBtn" style="padding:8px 10px;">Back to everyone</button>
+    </div>
     <div id="chat"></div>
     <div id="typing" style="font-size:12px; color:gray; padding-left:20px;"></div>
   </div>
@@ -319,6 +365,7 @@ let name = "";
 let color = "#ffffff";
 let ws;
 let isAdmin = false;
+let privateTarget = null;
 
 // =========================
 // LOGIN
@@ -413,11 +460,14 @@ ws.onmessage = (event) => {
       row.style.display = "flex";
       row.style.alignItems = "center";
       row.style.marginBottom = "6px";
+      row.style.gap = "6px";
 
+      const safeName = JSON.stringify(u.name);
       row.innerHTML = `
-        <span class="dot" style="background:white; margin-right:6px;"></span>
-        <span>${u.name}</span>
-        ${isAdmin ? `<button class="kickBtn" onclick="kickUser('${u.name}')">Kick</button>` : ""}
+        <span class="dot" style="background:white;"></span>
+        <span style="flex:1; word-break:break-word;">${u.name}</span>
+        ${u.name !== name ? `<button class="messageBtn" onclick='startPrivateMessage(${safeName})'>message</button>` : ""}
+        ${isAdmin ? `<button class="kickBtn" onclick='kickUser(${safeName})'>Kick</button>` : ""}
       `;
 
       usersDiv.appendChild(row);
@@ -452,10 +502,13 @@ if (m.type === "event") {
   div.textContent = `[${formatTime(m.time)}] ${m.msg}`;
 } else {
   div.className = "msg";
+  const privateLabel = m.type === "private_msg"
+    ? (m.name === name ? ` <span style="font-size:12px; opacity:0.8;">(to ${m.target})</span>` : ` <span style="font-size:12px; opacity:0.8;">(private)</span>`)
+    : "";
 
   div.innerHTML = `
     <span class="dot" style="background:${m.color}"></span>
-    <b>${m.name}</b>: ${m.msg}
+    <span><b>${m.name}</b>${privateLabel}: ${m.msg}</span>
   `;
 }
 
@@ -488,6 +541,33 @@ function kickUser(target){
   }));
 }
 
+function startPrivateMessage(target){
+  privateTarget = target;
+  updatePrivateBanner();
+  const msgInput = document.getElementById("msg");
+  msgInput.placeholder = `message ${target}...`;
+  msgInput.focus();
+}
+
+function clearPrivateMessage(){
+  privateTarget = null;
+  updatePrivateBanner();
+  document.getElementById("msg").placeholder = "message...";
+}
+
+function updatePrivateBanner(){
+  const banner = document.getElementById("privateBanner");
+  const text = document.getElementById("privateBannerText");
+
+  if(privateTarget){
+    banner.style.display = "flex";
+    text.textContent = `Private messaging ${privateTarget}`;
+  } else {
+    banner.style.display = "none";
+    text.textContent = "";
+  }
+}
+
 function send(){
   const msgEl = document.getElementById("msg");
   const msg = msgEl.value.trim();
@@ -503,10 +583,11 @@ function send(){
   }
 
   ws.send(JSON.stringify({
-    type: "msg",
+    type: privateTarget ? "private_msg" : "msg",
     name,
     msg,
-    color
+    color,
+    target: privateTarget
   }));
 
   msgEl.value = "";
@@ -571,6 +652,7 @@ document.getElementById("msg").addEventListener("keydown", (e) => {
 });
 
 document.getElementById("logoutBtn").addEventListener("click", logout);
+document.getElementById("clearPrivateBtn").addEventListener("click", clearPrivateMessage);
 document.getElementById("gameBtn").addEventListener("click", () => {
   window.location.href = "/static/games.html";
 });
@@ -597,6 +679,9 @@ function logout(){
 
   // clear chat visually (optional but cleaner)
   document.getElementById("chat").innerHTML = "";
+  document.getElementById("users").innerHTML = "";
+  document.getElementById("typing").textContent = "";
+  clearPrivateMessage();
 
   // reset state
   name = "";
