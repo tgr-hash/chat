@@ -2,48 +2,57 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Sandbox Circle</title>
+  <title>Sandbox Square</title>
   <style>
     body {
       margin: 0;
       background: #111;
       overflow: hidden;
     }
+
+    canvas {
+      display: block;
+    }
   </style>
 </head>
 <body>
 <script>
 (() => {
-  if (document.getElementById("powderCircle")) return;
+  if (document.getElementById("powderSandbox")) return;
 
-  const B = 3, R = 60, D = R * 2, U = 50;
-  const W = D, H = D;
-  const A = 0, S = 1, WTR = 2, SD = 3, DR = 4;
-  const STEP_MS = 50;
-  const STEPS_PER_TICK = 2;
+  // Main simulation sizing. Change these to resize the sandbox.
+  const PLAY_SIZE = 300;
+  const CELL = 3;
+  const W = PLAY_SIZE / CELL;
+  const H = PLAY_SIZE / CELL;
+  const HUD_HEIGHT = 72;
+  const A = 0, S = 1, WTR = 2, SD = 3, DR = 4, FIR = 5, SMK = 6;
 
+  // Lower STEP_MS = faster simulation updates.
+  const STEP_MS = 16;
+
+  // Material list: color (`c`), weight (`w`), and whether it appears in the toolbar.
   const M = [
-    { id: S, n: "Block", c: "#000" },
-    { id: WTR, n: "Water", c: "#1e90ff" },
-    { id: SD, n: "Sand", c: "#d2b48c" },
-    { id: DR, n: "Drain", c: "#d62828" }
+    { id: A, n: "Air", c: "#FFFFFF", w: 0, placeable: true },
+    { id: S, n: "Block", c: "#000000", w: 99, placeable: true },
+    { id: WTR, n: "Water", c: "#1e90ff", w: 2, placeable: true },
+    { id: SD, n: "Sand", c: "#d2b48c", w: 3, placeable: true },
+    { id: DR, n: "Drain", c: "#d62828", w: 99, placeable: true },
+    { id: FIR, n: "Fire", c: "#E54905", w: 0, placeable: true },
+    { id: SMK, n: "Smoke", c: "#C9BBB3", w: -1, placeable: false }
   ];
+  const PLACEABLE = M.filter(m => m.placeable);
+  const BY_ID = Object.fromEntries(M.map(m => [m.id, m]));
 
   let sel = S, md = false, erase = false, bs = 1;
   const MIN = 1, MAX = 8;
 
   const c = document.createElement("canvas");
-  c.id = "powderCircle";
-  c.width = W * B;
-  c.height = H * B + U;
+  c.id = "powderSandbox";
 
   Object.assign(c.style, {
-    position: "absolute",
-    left: "50%",
-    top: "50%",
-    transform: "translate(-50%,-50%)",
-    background: "#fff",
-    border: "2px solid #aaa",
+    position: "fixed",
+    inset: "0",
     cursor: "crosshair"
   });
 
@@ -51,20 +60,68 @@
 
   const x = c.getContext("2d");
   const g = Array.from({ length: H }, () => Array(W).fill(A));
-  const cx = R, cy = R;
+  const fireMade = Array.from({ length: H }, () => Array(W).fill(0));
+  let playX = 0;
+  let playY = 0;
+  let uiY = 0;
 
-  const inside = (x0, y) => {
-    const dx = x0 - cx, dy = y - cy;
-    return dx * dx + dy * dy <= R * R;
+  // Re-centers the 300x300 play area on window resize.
+  const resize = () => {
+    c.width = window.innerWidth;
+    c.height = window.innerHeight;
+    playX = Math.floor((c.width - PLAY_SIZE) / 2);
+    playY = Math.floor((c.height - PLAY_SIZE) / 2);
+    uiY = Math.min(c.height - HUD_HEIGHT - 16, playY + PLAY_SIZE + 20);
+  };
+
+  resize();
+  window.addEventListener("resize", resize);
+
+  const inside = (x0, y) => x0 >= 0 && y >= 0 && x0 < W && y < H;
+
+  const weightOf = id => (BY_ID[id] ? BY_ID[id].w : -1);
+
+  // These are the materials that can be displaced by weighted particles.
+  const isPowder = id => id === A || id === WTR || id === SD || id === SMK;
+
+  const setCell = (x0, y, id) => {
+    g[y][x0] = id;
+    fireMade[y][x0] = id === FIR ? fireMade[y][x0] : 0;
+  };
+
+  const swapCells = (x0, y, nx, ny) => {
+    const next = g[ny][nx];
+    g[ny][nx] = g[y][x0];
+    g[y][x0] = next;
+
+    const fireNext = fireMade[ny][nx];
+    fireMade[ny][nx] = fireMade[y][x0];
+    fireMade[y][x0] = fireNext;
+  };
+
+  // Weight rule: if the target below/next to a particle is lighter, they can swap.
+  const canDisplace = (id, target) => isPowder(target) && weightOf(id) > weightOf(target);
+  const canRiseThrough = (id, target) => isPowder(target) && weightOf(id) < weightOf(target);
+
+  const clearGrid = () => {
+    for (let y = 0; y < H; y++) {
+      for (let x0 = 0; x0 < W; x0++) {
+        g[y][x0] = A;
+        fireMade[y][x0] = 0;
+      }
+    }
   };
 
   const step = () => {
-    for (let y = H - 2; y >= 0; y--) {
-      for (let x0 = 0; x0 < W; x0++) {
-        if (!inside(x0, y)) continue;
+    // Tracks which cells have already moved this tick, so swaps happen particle by particle.
+    const moved = Array.from({ length: H }, () => Array(W).fill(false));
 
+    for (let y = H - 1; y >= 0; y--) {
+      for (let x0 = 0; x0 < W; x0++) {
+        if (moved[y][x0]) continue;
         const v = g[y][x0];
 
+        // Drain removes nearby water and smoke.
         if (v === DR) {
           const ns = [
             [0, -1],
@@ -76,103 +133,252 @@
           for (const [dx, dy] of ns) {
             const nx = x0 + dx;
             const ny = y + dy;
-            if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
             if (!inside(nx, ny)) continue;
-            if (g[ny][nx] === WTR) g[ny][nx] = A;
+            if (g[ny][nx] === WTR || g[ny][nx] === SMK) setCell(nx, ny, A);
           }
 
           continue;
         }
 
-        if (v === SD) {
-          const ny = y + 1;
-          if (inside(x0, ny)) {
-            const b = g[ny][x0];
-            if (b === A || b === WTR) {
-              g[ny][x0] = SD;
-              g[y][x0] = b;
-            }
+        // Fire behaves like sand while also creating 20 smoke particles above itself over time.
+        if (v === FIR) {
+          if (fireMade[y][x0] >= 20) {
+            setCell(x0, y, A);
+            moved[y][x0] = true;
+            continue;
           }
+
+          const smokeY = y - 1;
+          if (inside(x0, smokeY) && g[smokeY][x0] === A) {
+            setCell(x0, smokeY, SMK);
+            fireMade[y][x0]++;
+            if (fireMade[y][x0] >= 20) setCell(x0, y, A);
+          }
+          
+          const fallY = y + 1;
+          if (inside(x0, fallY) && canDisplace(FIR, g[fallY][x0])) {
+            swapCells(x0, y, x0, fallY);
+            moved[fallY][x0] = true;
+            moved[y][x0] = true;
+            continue;
+          }
+
+          if (inside(x0 - 1, fallY) && canDisplace(FIR, g[fallY][x0 - 1])) {
+            swapCells(x0, y, x0 - 1, fallY);
+            moved[fallY][x0 - 1] = true;
+            moved[y][x0] = true;
+            continue;
+          }
+
+          if (inside(x0 + 1, fallY) && canDisplace(FIR, g[fallY][x0 + 1])) {
+            swapCells(x0, y, x0 + 1, fallY);
+            moved[fallY][x0 + 1] = true;
+            moved[y][x0] = true;
+          }
+
+          moved[y][x0] = true;
+          continue;
         }
 
+        // Sand movement: down, then down-left, then down-right.
+        if (v === SD) {
+          const ny = y + 1;
+          if (inside(x0, ny) && canDisplace(SD, g[ny][x0])) {
+            swapCells(x0, y, x0, ny);
+            moved[ny][x0] = true;
+            moved[y][x0] = true;
+            continue;
+          }
+
+          if (inside(x0 - 1, ny) && canDisplace(SD, g[ny][x0 - 1])) {
+            swapCells(x0, y, x0 - 1, ny);
+            moved[ny][x0 - 1] = true;
+            moved[y][x0] = true;
+            continue;
+          }
+
+          if (inside(x0 + 1, ny) && canDisplace(SD, g[ny][x0 + 1])) {
+            swapCells(x0, y, x0 + 1, ny);
+            moved[ny][x0 + 1] = true;
+            moved[y][x0] = true;
+          }
+
+          moved[y][x0] = true;
+          continue;
+        }
+
+        // Water movement: down, random diagonal, then random sideways.
         if (v === WTR) {
           const ny = y + 1;
-          if (inside(x0, ny) && g[ny][x0] === A) {
-            g[ny][x0] = WTR;
-            g[y][x0] = A;
-          } else {
-            const d = Math.random() < 0.5 ? [-1, 1] : [1, -1];
-            for (const dx of d) {
-              const nx = x0 + dx;
-              if (inside(nx, y) && g[y][nx] === A) {
-                g[y][nx] = WTR;
-                g[y][x0] = A;
-                break;
-              }
+          if (inside(x0, ny) && canDisplace(WTR, g[ny][x0])) {
+            swapCells(x0, y, x0, ny);
+            moved[ny][x0] = true;
+            moved[y][x0] = true;
+            continue;
+          }
+
+          const diagonals = Math.random() < 0.5 ? [-1, 1] : [1, -1];
+          let didMove = false;
+          for (const dx of diagonals) {
+            if (inside(x0 + dx, ny) && canDisplace(WTR, g[ny][x0 + dx])) {
+              swapCells(x0, y, x0 + dx, ny);
+              moved[ny][x0 + dx] = true;
+              moved[y][x0] = true;
+              didMove = true;
+              break;
             }
           }
+
+          if (didMove) continue;
+
+          const sideways = Math.random() < 0.5 ? [-1, 1] : [1, -1];
+          for (const dx of sideways) {
+            if (inside(x0 + dx, y) && canDisplace(WTR, g[y][x0 + dx])) {
+              swapCells(x0, y, x0 + dx, y);
+              moved[y][x0 + dx] = true;
+              moved[y][x0] = true;
+              break;
+            }
+          }
+          moved[y][x0] = true;
+          continue;
+        }
+
+        // Smoke is lighter than air, so it rises upward through heavier materials.
+        if (v === SMK) {
+          const ny = y - 1;
+          if (inside(x0, ny) && canRiseThrough(SMK, g[ny][x0])) {
+            swapCells(x0, y, x0, ny);
+            moved[ny][x0] = true;
+            moved[y][x0] = true;
+            continue;
+          }
+
+          const diagonals = Math.random() < 0.5 ? [-1, 1] : [1, -1];
+          let didRise = false;
+          for (const dx of diagonals) {
+            if (inside(x0 + dx, ny) && canRiseThrough(SMK, g[ny][x0 + dx])) {
+              swapCells(x0, y, x0 + dx, ny);
+              moved[ny][x0 + dx] = true;
+              moved[y][x0] = true;
+              didRise = true;
+              break;
+            }
+          }
+
+          if (didRise) continue;
+
+          const drift = Math.random() < 0.5 ? [-1, 1] : [1, -1];
+          for (const dx of drift) {
+            if (inside(x0 + dx, y) && canRiseThrough(SMK, g[y][x0 + dx])) {
+              swapCells(x0, y, x0 + dx, y);
+              moved[y][x0 + dx] = true;
+              moved[y][x0] = true;
+              break;
+            }
+          }
+          moved[y][x0] = true;
         }
       }
     }
   };
 
-  setInterval(() => {
-    for (let i = 0; i < STEPS_PER_TICK; i++) step();
-  }, STEP_MS);
+  setInterval(step, STEP_MS);
+
+  // Toolbar button layout for placeable materials.
+  const materialBox = i => ({
+    x: playX + i * 96,
+    y: uiY,
+    w: 86,
+    h: 34
+  });
+
+  const minusBox = () => ({
+    x: c.width - 108,
+    y: c.height - 56,
+    w: 40,
+    h: 40
+  });
+
+  const plusBox = () => ({
+    x: c.width - 56,
+    y: c.height - 56,
+    w: 40,
+    h: 40
+  });
 
   const draw = () => {
     x.clearRect(0, 0, c.width, c.height);
+    x.fillStyle = "#111";
+    x.fillRect(0, 0, c.width, c.height);
+
+    x.fillStyle = "#f6f6f6";
+    x.fillRect(playX, playY, PLAY_SIZE, PLAY_SIZE);
 
     for (let y = 0; y < H; y++) {
       for (let x0 = 0; x0 < W; x0++) {
-        if (!inside(x0, y)) continue;
-        const v = g[y][x0];
-        if (v !== A) {
-          x.fillStyle = M.find(m => m.id === v).c;
-          x.fillRect(x0 * B, y * B, B, B);
-        }
+      const v = g[y][x0];
+      if (v !== A) {
+        x.fillStyle = BY_ID[v].c;
+        x.fillRect(playX + x0 * CELL, playY + y * CELL, CELL, CELL);
       }
+    }
     }
 
     x.strokeStyle = "#999";
-    x.beginPath();
-    x.arc(cx * B, cy * B, R * B, 0, Math.PI * 2);
-    x.stroke();
+    x.lineWidth = 2;
+    x.strokeRect(playX, playY, PLAY_SIZE, PLAY_SIZE);
 
-    x.fillStyle = "#f0f0f0";
-    x.fillRect(0, H * B, c.width, U);
-
-    M.forEach((m, i) => {
-      const px = 15 + i * 80, py = H * B + 10;
+    PLACEABLE.forEach((m, i) => {
+      const box = materialBox(i);
+      x.fillStyle = sel === m.id ? "#ffffff" : "#d8d8d8";
+      x.fillRect(box.x, box.y, box.w, box.h);
+      x.strokeStyle = sel === m.id ? "#3a86ff" : "#8b8b8b";
+      x.strokeRect(box.x, box.y, box.w, box.h);
       x.fillStyle = m.c;
-      x.fillRect(px, py, 24, 24);
-      x.fillStyle = "#000";
+      x.fillRect(box.x + 6, box.y + 5, 24, 24);
+      x.fillStyle = "#111";
       x.font = "13px sans-serif";
-      x.fillText(m.n, px + 32, py + 17);
-      if (sel === m.id) x.strokeRect(px - 2, py - 2, 28, 28);
+      x.fillText(m.n, box.x + 36, box.y + 20);
     });
 
-    x.font = "12px monospace";
-    x.fillText("Brush: " + bs, c.width - 90, H * B + 30);
+    const minus = minusBox();
+    const plus = plusBox();
+    x.fillStyle = "#ececec";
+    x.fillRect(minus.x, minus.y, minus.w, minus.h);
+    x.fillRect(plus.x, plus.y, plus.w, plus.h);
+    x.strokeStyle = "#8b8b8b";
+    x.strokeRect(minus.x, minus.y, minus.w, minus.h);
+    x.strokeRect(plus.x, plus.y, plus.w, plus.h);
+    x.fillStyle = "#111";
+    x.font = "26px sans-serif";
+    x.fillText("-", minus.x + 14, minus.y + 28);
+    x.fillText("+", plus.x + 11, plus.y + 28);
+
+    x.font = "14px monospace";
+    x.fillStyle = "#f2f2f2";
+    x.fillText("Brush: " + bs, c.width - 210, c.height - 28);
+    x.fillText("Right click: erase", 16, c.height - 24);
 
     requestAnimationFrame(draw);
   };
 
   draw();
 
+  // Brush painting into the simulation area.
   const paint = (mx, my) => {
-    const gx = Math.floor(mx / B);
-    const gy = Math.floor(my / B);
+    const gx = Math.floor((mx - playX) / CELL);
+    const gy = Math.floor((my - playY) / CELL);
 
     for (let dy = -bs; dy <= bs; dy++) {
       for (let dx = -bs; dx <= bs; dx++) {
         if (dx * dx + dy * dy > bs * bs) continue;
 
         const x0 = gx + dx, y0 = gy + dy;
-        if (x0 < 0 || y0 < 0 || x0 >= W || y0 >= H) continue;
         if (!inside(x0, y0)) continue;
 
-        g[y0][x0] = erase ? A : sel;
+        setCell(x0, y0, erase ? A : sel);
+        if (!erase && sel === FIR) fireMade[y0][x0] = 0;
       }
     }
   };
@@ -185,13 +391,33 @@
     md = true;
     erase = e.button === 2;
 
-    if (my > H * B) {
-      M.forEach((m, i) => {
-        const px = 15 + i * 80, py = H * B + 10;
-        if (mx >= px && mx <= px + 24 && my >= py && my <= py + 24) {
+    const minus = minusBox();
+    const plus = plusBox();
+    if (mx >= minus.x && mx <= minus.x + minus.w && my >= minus.y && my <= minus.y + minus.h) {
+      bs = Math.max(MIN, bs - 1);
+      md = false;
+      return;
+    }
+
+    if (mx >= plus.x && mx <= plus.x + plus.w && my >= plus.y && my <= plus.y + plus.h) {
+      bs = Math.min(MAX, bs + 1);
+      md = false;
+      return;
+    }
+
+    if (my >= uiY && my <= uiY + 34) {
+      PLACEABLE.forEach((m, i) => {
+        const box = materialBox(i);
+        if (mx >= box.x && mx <= box.x + box.w && my >= box.y && my <= box.y + box.h) {
           sel = m.id;
         }
       });
+      md = false;
+      return;
+    }
+
+    if (mx < playX || mx >= playX + PLAY_SIZE || my < playY || my >= playY + PLAY_SIZE) {
+      md = false;
       return;
     }
 
@@ -201,7 +427,10 @@
   c.addEventListener("mousemove", e => {
     if (!md) return;
     const r = c.getBoundingClientRect();
-    paint(e.clientX - r.left, e.clientY - r.top);
+    const mx = e.clientX - r.left;
+    const my = e.clientY - r.top;
+    if (mx < playX || mx >= playX + PLAY_SIZE || my < playY || my >= playY + PLAY_SIZE) return;
+    paint(mx, my);
   });
 
   window.addEventListener("mouseup", () => md = false);
@@ -216,11 +445,7 @@
     }
 
     if (e.key.toLowerCase() === "r") {
-      for (let y = 0; y < H; y++) {
-        for (let x0 = 0; x0 < W; x0++) {
-          g[y][x0] = A;
-        }
-      }
+      clearGrid();
     }
   });
 
