@@ -714,6 +714,447 @@ function formatTime(t){
 }
 </script>
 
+<!-- Floating AI Assistant Widget: paste near the end of your page, just before </body> -->
+<div class="oa-widget" id="oaWidget">
+  <div class="oa-widget__panel" id="oaWidgetPanel" aria-hidden="true">
+    <div class="oa-widget__header">
+      <span class="oa-widget__title">AI Assistant</span>
+      <button
+        type="button"
+        class="oa-widget__close"
+        id="oaWidgetClose"
+        aria-label="Close chat"
+      >
+        ×
+      </button>
+    </div>
+
+    <div class="oa-widget__messages" id="oaWidgetMessages">
+      <div class="oa-widget__message oa-widget__message--ai">
+        Hi! Ask me something.
+      </div>
+    </div>
+
+    <form class="oa-widget__form" id="oaWidgetForm">
+      <input
+        type="text"
+        id="oaWidgetInput"
+        class="oa-widget__input"
+        placeholder="Type your message..."
+        autocomplete="off"
+        required
+      />
+      <button type="submit" class="oa-widget__send" id="oaWidgetSend">
+        Send
+      </button>
+    </form>
+  </div>
+
+  <button
+    type="button"
+    class="oa-widget__toggle"
+    id="oaWidgetToggle"
+    aria-label="Open AI assistant"
+    aria-expanded="false"
+    aria-controls="oaWidgetPanel"
+  >
+    AI
+  </button>
+</div>
+
+<style>
+  /* Isolated widget styles with oa-widget prefix to avoid site CSS conflicts */
+  .oa-widget,
+  .oa-widget * {
+    box-sizing: border-box;
+  }
+
+  .oa-widget {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 9999;
+    font-family: Arial, sans-serif;
+  }
+
+  .oa-widget__panel {
+    width: min(360px, calc(100vw - 24px));
+    height: min(520px, calc(100vh - 100px));
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 12px;
+    background: #ffffff;
+    border: 1px solid #d9d9d9;
+    border-radius: 16px;
+    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.18);
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+    pointer-events: none;
+    visibility: hidden;
+    transition:
+      opacity 0.22s ease,
+      transform 0.22s ease,
+      visibility 0.22s ease;
+  }
+
+  .oa-widget__panel.is-open {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+    visibility: visible;
+  }
+
+  .oa-widget__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    background: #111111;
+    color: #ffffff;
+  }
+
+  .oa-widget__title {
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .oa-widget__close {
+    border: 0;
+    background: transparent;
+    color: #ffffff;
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .oa-widget__messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    background: #f7f7f7;
+    scroll-behavior: smooth;
+  }
+
+  .oa-widget__message {
+    max-width: 85%;
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    line-height: 1.45;
+    font-size: 14px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .oa-widget__message--user {
+    margin-left: auto;
+    background: #111111;
+    color: #ffffff;
+    border-bottom-right-radius: 4px;
+  }
+
+  .oa-widget__message--ai {
+    margin-right: auto;
+    background: #e9e9e9;
+    color: #111111;
+    border-bottom-left-radius: 4px;
+  }
+
+  .oa-widget__message--system {
+    margin-right: auto;
+    background: #fff4e5;
+    color: #7a4b00;
+    border: 1px solid #ffd6a0;
+  }
+
+  .oa-widget__typing {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #555555;
+  }
+
+  .oa-widget__typing-dots {
+    display: inline-flex;
+    gap: 4px;
+  }
+
+  .oa-widget__typing-dots span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #777777;
+    animation: oaWidgetBlink 1.2s infinite ease-in-out;
+  }
+
+  .oa-widget__typing-dots span:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+
+  .oa-widget__typing-dots span:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+
+  @keyframes oaWidgetBlink {
+    0%, 80%, 100% {
+      opacity: 0.3;
+      transform: scale(0.9);
+    }
+    40% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .oa-widget__form {
+    display: flex;
+    gap: 8px;
+    padding: 12px;
+    border-top: 1px solid #e5e5e5;
+    background: #ffffff;
+  }
+
+  .oa-widget__input {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid #cccccc;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font: inherit;
+    font-size: 14px;
+    color: #111111;
+    background: #ffffff;
+    outline: none;
+  }
+
+  .oa-widget__input:focus {
+    border-color: #111111;
+  }
+
+  .oa-widget__send,
+  .oa-widget__toggle {
+    border: 0;
+    cursor: pointer;
+    font: inherit;
+  }
+
+  .oa-widget__send {
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: #111111;
+    color: #ffffff;
+    white-space: nowrap;
+  }
+
+  .oa-widget__send:disabled,
+  .oa-widget__input:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+  }
+
+  .oa-widget__toggle {
+    width: 60px;
+    height: 60px;
+    margin-left: auto;
+    border-radius: 999px;
+    background: #111111;
+    color: #ffffff;
+    font-size: 18px;
+    font-weight: 700;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.22);
+  }
+
+  @media (max-width: 640px) {
+    .oa-widget {
+      right: 12px;
+      bottom: 12px;
+      left: 12px;
+    }
+
+    .oa-widget__panel {
+      width: 100%;
+      height: min(70vh, 500px);
+      margin-bottom: 10px;
+    }
+
+    .oa-widget__toggle {
+      width: 56px;
+      height: 56px;
+    }
+  }
+</style>
+
+<script>
+  (function () {
+    "use strict";
+
+    // Widget element references
+    var widgetPanel = document.getElementById("oaWidgetPanel");
+    var widgetToggle = document.getElementById("oaWidgetToggle");
+    var widgetClose = document.getElementById("oaWidgetClose");
+    var widgetForm = document.getElementById("oaWidgetForm");
+    var widgetInput = document.getElementById("oaWidgetInput");
+    var widgetSend = document.getElementById("oaWidgetSend");
+    var widgetMessages = document.getElementById("oaWidgetMessages");
+
+    if (
+      !widgetPanel ||
+      !widgetToggle ||
+      !widgetClose ||
+      !widgetForm ||
+      !widgetInput ||
+      !widgetSend ||
+      !widgetMessages
+    ) {
+      return;
+    }
+
+    // Opens the chat panel with animation and focuses the input
+    function openWidget() {
+      widgetPanel.classList.add("is-open");
+      widgetPanel.setAttribute("aria-hidden", "false");
+      widgetToggle.setAttribute("aria-expanded", "true");
+      widgetInput.focus();
+      scrollToBottom();
+    }
+
+    // Closes the chat panel
+    function closeWidget() {
+      widgetPanel.classList.remove("is-open");
+      widgetPanel.setAttribute("aria-hidden", "true");
+      widgetToggle.setAttribute("aria-expanded", "false");
+    }
+
+    // Toggles panel open/closed
+    function toggleWidget() {
+      if (widgetPanel.classList.contains("is-open")) {
+        closeWidget();
+      } else {
+        openWidget();
+      }
+    }
+
+    // Keeps the latest message visible
+    function scrollToBottom() {
+      widgetMessages.scrollTop = widgetMessages.scrollHeight;
+    }
+
+    // Creates and inserts a message bubble
+    function addMessage(text, type) {
+      var message = document.createElement("div");
+      message.className = "oa-widget__message oa-widget__message--" + type;
+      message.textContent = text;
+      widgetMessages.appendChild(message);
+      scrollToBottom();
+      return message;
+    }
+
+    // Shows a temporary typing indicator while the AI request is running
+    function addTypingIndicator() {
+      var typingMessage = document.createElement("div");
+      typingMessage.className = "oa-widget__message oa-widget__message--ai";
+      typingMessage.id = "oaWidgetTypingIndicator";
+      typingMessage.innerHTML =
+        '<span class="oa-widget__typing">' +
+        "<span>AI is thinking...</span>" +
+        '<span class="oa-widget__typing-dots" aria-hidden="true">' +
+        "<span></span><span></span><span></span>" +
+        "</span>" +
+        "</span>";
+
+      widgetMessages.appendChild(typingMessage);
+      scrollToBottom();
+      return typingMessage;
+    }
+
+    // Enables or disables input controls during requests
+    function setLoadingState(isLoading) {
+      widgetInput.disabled = isLoading;
+      widgetSend.disabled = isLoading;
+      widgetSend.textContent = isLoading ? "..." : "Send";
+    }
+
+    widgetToggle.addEventListener("click", toggleWidget);
+    widgetClose.addEventListener("click", closeWidget);
+
+    // Optional: close with Escape for better UX
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && widgetPanel.classList.contains("is-open")) {
+        closeWidget();
+      }
+    });
+
+    widgetForm.addEventListener("submit", async function (event) {
+      event.preventDefault();
+
+      var prompt = widgetInput.value.trim();
+      if (!prompt) {
+        return;
+      }
+
+      addMessage(prompt, "user");
+      widgetInput.value = "";
+      setLoadingState(true);
+
+      var typingIndicator = addTypingIndicator();
+
+      try {
+        var response = await fetch("http://localhost:11434/api/generate", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: "llama3:latest",
+            prompt: prompt,
+            stream: false
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error("Request failed with status " + response.status + ".");
+        }
+
+        var data = await response.json();
+        var aiText = data && typeof data.response === "string"
+          ? data.response.trim()
+          : "";
+
+        if (!aiText) {
+          throw new Error("The AI returned an empty response.");
+        }
+
+        if (typingIndicator && typingIndicator.parentNode) {
+          typingIndicator.parentNode.removeChild(typingIndicator);
+        }
+
+        addMessage(aiText, "ai");
+      } catch (error) {
+        if (typingIndicator && typingIndicator.parentNode) {
+          typingIndicator.parentNode.removeChild(typingIndicator);
+        }
+
+        var message = "Sorry, something went wrong.";
+
+        // Keep API logic the same, only improve how errors are surfaced
+        if (error && error.message) {
+          message += " " + error.message;
+        }
+
+        addMessage(message, "system");
+      } finally {
+        setLoadingState(false);
+        widgetInput.focus();
+        scrollToBottom();
+      }
+    });
+  })();
+</script>
+
+
 </body>
 </html>
 """
