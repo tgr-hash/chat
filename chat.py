@@ -185,6 +185,25 @@ HTML = r"""
 <style>
 body { margin:0; font-family:'Pixelify Sans'; background:white; }
 
+.button {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.button:hover {
+  transform: translateY(-3px) scale(1.03);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+}
+
+.hero {
+  background-image: url('your-image.jpg');
+  background-attachment: fixed;
+  background-size: cover;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
 .kickBtn {
   margin-left:auto;
   background:red;
@@ -301,6 +320,17 @@ body { margin:0; font-family:'Pixelify Sans'; background:white; }
   text-align:center;
 }
 
+.reveal {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.reveal.active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 #bar {
   position:fixed;
   bottom:0;
@@ -366,6 +396,25 @@ let color = "#ffffff";
 let ws;
 let isAdmin = false;
 let privateTarget = null;
+const reveals = new Set();
+const revealObserver = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add("active");
+      revealObserver.unobserve(entry.target);
+      reveals.delete(entry.target);
+    }
+  });
+});
+
+function observeReveal(el){
+  if (!el || !el.classList || !el.classList.contains("reveal") || reveals.has(el)) {
+    return;
+  }
+
+  reveals.add(el);
+  revealObserver.observe(el);
+}
 
 // =========================
 // LOGIN
@@ -498,10 +547,10 @@ const div = document.createElement("div");
 div.dataset.index = i;
 
 if (m.type === "event") {
-  div.className = "event";
+  div.className = "event reveal";
   div.textContent = `[${formatTime(m.time)}] ${m.msg}`;
 } else {
-  div.className = "msg";
+  div.className = "msg reveal";
   const privateLabel = m.type === "private_msg"
     ? (m.name === name ? ` <span style="font-size:12px; opacity:0.8;">(to ${m.target})</span>` : ` <span style="font-size:12px; opacity:0.8;">(private)</span>`)
     : "";
@@ -519,6 +568,7 @@ if (m.type === "event") {
   }
 
     chat.appendChild(div);
+    observeReveal(div);
   });
 
   chat.scrollTop = chat.scrollHeight;
