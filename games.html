@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Games</title>
+  <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Pixelify Sans';
+      background: white;
+      text-align: center;
+      margin: 0;
+      padding: 40px 10px;
+    }
+
+    h1 {
+      margin-bottom: 30px;
+    }
+
+    .container {
+      max-width: 500px;
+      margin: auto;
+    }
+
+    .gameBtn {
+      display: block;
+      width: 100%;
+      margin: 10px 0;
+      padding: 15px;
+      font-size: 18px;
+      background: black;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-family: 'Pixelify Sans';
+    }
+
+    .gameBtn:hover {
+      opacity: 0.8;
+    }
+
+    .backBtn {
+      margin-top: 30px;
+      padding: 10px 20px;
+      background: black;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-family: 'Pixelify Sans';
+    }
+
+  </style>
+</head>
+
+<body>
+
+<h1>Games</h1>
+
+<div class="container">
+
+  <!-- 🔽 PASTE FILE PATHS INSIDE goTo("HERE") 🔽 -->
+
+  <button class="gameBtn" onclick='goTo("games/breakout.html")'>Breakout</button>
+  <button class="gameBtn" onclick='goTo("games/platform.html")'>Platforms</button>
+  <button class="gameBtn" onclick='goTo("games/pon2.html")'>Two player pong</button>
+  <button class="gameBtn" onclick='goTo("games/pong1.html")'>Singleplayer Pong</button>
+  <button class="gameBtn" onclick='goTo("games/flappy.html")'>Flappy Bird (pixelart)</button>
+  <button class="gameBtn" onclick='goTo("games/snake/snake.html")'>Snake</button>
+  <button class="gameBtn" onclick='goTo("PASTE_PATH_HERE")'>Block game (dino)</button>
+  <button class="gameBtn" onclick='goTo("games/aimtrainer.html")'>Aim trainer</button>
+  <button class="gameBtn" onclick='goTo("PASTE_PATH_HERE")'>Dodge</button>
+  <button class="gameBtn" onclick='goTo("games/maze.html")'>Maze Runner</button>
+  <button class="gameBtn" onclick='goTo("games/fruit.html")'>Fruit Ninja</button>
+  <button class="gameBtn" onclick='goTo("games/space/space.html")'>Space Invaders (galactica)</button>
+  <button class="gameBtn" onclick='goTo("games/sandbox.html")'>Sandbox Circle</button>
+  <button class="gameBtn" onclick='goTo("games/finn30.html")'>Finn's Game (ver.3.0)</button>
+
+  <!-- 🔼 END OF EDIT ZONE 🔼 -->
+
+  <button class="gameBtn" onclick='downloadArchive("games/Itch.io%20games.zip")'>Download Itch.io games (Way better than mine)</button>
+  <button class="backBtn" onclick='goTo("/")'>Back to chat</button>
+
+</div>
+
+<script>
+function goTo(path){
+  window.location.href = path;
+}
+
+function downloadArchive(path){
+  const link = document.createElement("a");
+  link.href = path;
+  link.download = "Itch.io games.zip";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+</script>
+
+</body>
+</html>
